@@ -7,12 +7,19 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Download } from "lucide-react";
 import "@excalidraw/excalidraw/index.css";
-import { convertToExcalidrawElements}  from "@excalidraw/excalidraw"
+// import { convertToExcalidrawElements}  from "@excalidraw/excalidraw"
 
 
 // Dynamically import Excalidraw to avoid SSR issues
 const Excalidraw = dynamic(
   async () => (await import("@excalidraw/excalidraw")).Excalidraw,
+  {
+    ssr: false,
+  }
+);
+
+const convertToExcalidrawElements = dynamic(
+  async () => (await import("@excalidraw/excalidraw")).convertToExcalidrawElements,
   {
     ssr: false,
   }
