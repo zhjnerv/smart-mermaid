@@ -1,103 +1,251 @@
-import Image from "next/image";
+"use client";
+
+import { useState, useEffect } from "react";
+import { toast } from "sonner";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Wand2 } from "lucide-react";
+import { Header } from "@/components/header";
+import { TextInput } from "@/components/text-input";
+import { FileUpload } from "@/components/file-upload";
+import { DiagramTypeSelector } from "@/components/diagram-type-selector";
+import { MermaidEditor } from "@/components/mermaid-editor";
+import { ExcalidrawRenderer } from "@/components/excalidraw-renderer";
+import { generateMermaidFromText } from "@/lib/ai-service";
+import { isWithinCharLimit } from "@/lib/utils";
+import { 
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter
+} from "@/components/ui/dialog";
+
+const usageLimit = 5;
+
+// Usage tracking functions
+const checkAndIncrementUsage = () => {
+  const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+  const usageData = JSON.parse(localStorage.getItem('usageData') || '{}');
+  
+  if (!usageData[today]) {
+    usageData[today] = 0;
+  }
+  
+  if (usageData[today] >= usageLimit) {
+    return false; // Limit exceeded
+  }
+  
+  usageData[today] += 1;
+  localStorage.setItem('usageData', JSON.stringify(usageData));
+  return true; // Within limit
+};
+
+const getRemainingUsage = () => {
+  const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+  const usageData = JSON.parse(localStorage.getItem('usageData') || '{}');
+  const todayUsage = usageData[today] || 0;
+  return Math.max(0, usageLimit - todayUsage);
+};
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              app/page.js
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [inputText, setInputText] = useState("");
+  const [mermaidCode, setMermaidCode] = useState("");
+  const [diagramType, setDiagramType] = useState("auto");
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [streamingContent, setStreamingContent] = useState("");
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [remainingUsage, setRemainingUsage] = useState(5);
+  const [showLimitDialog, setShowLimitDialog] = useState(false);
+  const maxChars = parseInt(process.env.NEXT_PUBLIC_MAX_CHARS || "20000");
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  useEffect(() => {
+    // Update remaining usage count on component mount
+    setRemainingUsage(getRemainingUsage());
+  }, []);
+
+  const handleTextChange = (text) => {
+    setInputText(text);
+  };
+
+  const handleFileTextExtracted = (text) => {
+    setInputText(text);
+  };
+
+  const handleDiagramTypeChange = (type) => {
+    setDiagramType(type);
+  };
+
+  const handleMermaidCodeChange = (code) => {
+    setMermaidCode(code);
+  };
+
+  const handleStreamChunk = (chunk) => {
+    setStreamingContent(prev => prev + chunk);
+  };
+
+  const handleGenerateClick = async () => {
+    if (!inputText.trim()) {
+      toast.error("请输入文本内容");
+      return;
+    }
+
+    if (!isWithinCharLimit(inputText, maxChars)) {
+      toast.error(`文本超过${maxChars}字符限制`);
+      return;
+    }
+
+    // Check usage limit
+    if (!checkAndIncrementUsage()) {
+      setShowLimitDialog(true);
+      return;
+    }
+    
+    // Update remaining usage display
+    setRemainingUsage(getRemainingUsage());
+
+    setIsGenerating(true);
+    setIsStreaming(true);
+    setStreamingContent("");
+
+    try {
+      const { mermaidCode: generatedCode, error } = await generateMermaidFromText(
+        inputText,
+        diagramType,
+        handleStreamChunk
+      );
+
+      if (error) {
+        toast.error(error);
+        return;
+      }
+
+      if (!generatedCode) {
+        toast.error("生成图表失败，请重试");
+        return;
+      }
+
+      setMermaidCode(generatedCode);
+      toast.success("图表生成成功");
+    } catch (error) {
+      console.error("Generation error:", error);
+      toast.error("生成图表时发生错误");
+    } finally {
+      setIsGenerating(false);
+      setIsStreaming(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col min-h-screen">
+      <Header />
+      
+      <main className="flex-1  py-6 px-4 md:px-6">
+        <div className="grid gap-6 md:grid-cols-3">
+          <div className="space-y-6 md:col-span-1 flex flex-col">
+            {/* <h2 className="text-2xl font-bold">文本输入</h2> */}
+            
+            <Tabs defaultValue="manual">
+              <div className="flex justify-between items-center">
+                <TabsList>
+                  <TabsTrigger value="manual">手动输入</TabsTrigger>
+                  <TabsTrigger value="file">文件上传</TabsTrigger>
+                </TabsList>
+                <div className="w-40">
+                  <DiagramTypeSelector 
+                    value={diagramType} 
+                    onChange={handleDiagramTypeChange} 
+                  />
+                </div>
+              </div>
+              <TabsContent value="manual" className="mt-4">
+                <TextInput 
+                  value={inputText} 
+                  onChange={handleTextChange} 
+                  maxChars={maxChars}
+                />
+              </TabsContent>
+              <TabsContent value="file" className="mt-4">
+                <FileUpload onTextExtracted={handleFileTextExtracted} />
+              </TabsContent>
+            </Tabs>
+
+            <div className="space-y-4 flex-1">
+              <div className="text-sm text-muted-foreground text-right">
+                今日剩余使用次数: <span className={remainingUsage <= 1 ? "text-red-500 font-bold" : ""}>{remainingUsage}</span>/{usageLimit}
+              </div>
+              <Button 
+                onClick={handleGenerateClick} 
+                disabled={isGenerating || !inputText.trim() || !isWithinCharLimit(inputText, maxChars)}
+                className="w-full"
+              >
+                {isGenerating ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-background mr-2"></div>
+                    生成中...
+                  </>
+                ) : (
+                  <>
+                    <Wand2 className="mr-2 h-4 w-4" />
+                    生成图表
+                  </>
+                )}
+              </Button>
+            </div>
+            
+            {/* <Card className=" p-0"> */}
+              {/* <CardContent className="p-4"> */}
+                <MermaidEditor 
+                  code={mermaidCode} 
+                  onChange={handleMermaidCodeChange}
+                  streamingContent={streamingContent}
+                  isStreaming={isStreaming}
+                />
+              {/* </CardContent> */}
+            {/* </Card> */}
+          </div>
+          
+          <div className="space-y-6 md:col-span-2">
+            
+            {/* <Card className="h-full p-0"> */}
+              {/* <CardContent className="p-4 h-full"> */}
+                <ExcalidrawRenderer mermaidCode={mermaidCode} />
+              {/* </CardContent> */}
+            {/* </Card> */}
+          </div>
         </div>
       </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
+      
+      <footer className="border-t py-4 px-6">
+        <div className=" text-center text-sm text-muted-foreground">
+          AI 驱动的文本转 Mermaid 图表 Web 应用 &copy; {new Date().getFullYear()}
+        </div>
       </footer>
+
+      {/* Usage Limit Dialog */}
+      <Dialog open={showLimitDialog} onOpenChange={setShowLimitDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>使用次数已达上限</DialogTitle>
+            <DialogDescription>
+              <div className="py-4">
+                <p className="mb-2">您今日的使用次数已达上限 ({usageLimit}次/天)</p>
+                <p>如需更多使用次数，请扫描下方二维码联系作者</p>
+                <div className="flex justify-center my-4">
+                  <img src="/qrcode.png" alt="联系二维码" className="w-48" />
+                </div>
+              </div>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="sm:justify-center">
+            <Button variant="secondary" onClick={() => setShowLimitDialog(false)}>
+              关闭
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
