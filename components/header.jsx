@@ -1,7 +1,7 @@
 "use client";
 
 import { ThemeToggle } from "@/components/theme-toggle";
-import { FileCode2 } from "lucide-react";
+import { FileCode2, Github } from "lucide-react";
 
 export function Header() {
   return (
@@ -12,6 +12,14 @@ export function Header() {
           <span className="text-lg font-bold">Smart Mermaid</span>
         </div>
         <div className="flex items-center gap-4">
+          <a 
+            href="https://github.com/liujuntao123/smart-mermaid"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:opacity-80"
+          >
+            <Github className="h-5 w-5" />
+          </a>
           <ThemeToggle />
         </div>
       </div>
