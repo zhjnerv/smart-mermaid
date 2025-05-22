@@ -7,8 +7,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Download } from "lucide-react";
 import "@excalidraw/excalidraw/index.css";
-// import { convertToExcalidrawElements}  from "@excalidraw/excalidraw"
-
+import { convertToExcalidrawElements } from "@excalidraw/excalidraw";
 
 // Dynamically import Excalidraw to avoid SSR issues
 const Excalidraw = dynamic(
@@ -18,14 +17,7 @@ const Excalidraw = dynamic(
   }
 );
 
-const convertToExcalidrawElements = dynamic(
-  async () => (await import("@excalidraw/excalidraw")).convertToExcalidrawElements,
-  {
-    ssr: false,
-  }
-);
-
-export function ExcalidrawRenderer({ mermaidCode }) {
+function ExcalidrawRenderer({ mermaidCode }) {
   const [excalidrawElements, setExcalidrawElements] = useState([]);
   const [excalidrawFiles, setExcalidrawFiles] = useState({});
   const [excalidrawAPI, setExcalidrawAPI] = useState(null);
@@ -34,7 +26,7 @@ export function ExcalidrawRenderer({ mermaidCode }) {
 
   useEffect(() => {
     if(!excalidrawAPI) return;
-
+    
     if (!mermaidCode || mermaidCode.trim() === "") {
       setExcalidrawElements([]);
       setExcalidrawFiles({});
@@ -42,6 +34,7 @@ export function ExcalidrawRenderer({ mermaidCode }) {
       excalidrawAPI.resetScene();
       return;
     }
+    
 
     const renderMermaid = async () => {
       setIsRendering(true);
@@ -71,44 +64,9 @@ export function ExcalidrawRenderer({ mermaidCode }) {
     renderMermaid();
   }, [mermaidCode]);
 
-  const handleExport = async () => {
-    if (!excalidrawAPI) return;
-    
-    try {
-      const blob = await excalidrawAPI.exportToBlob({
-        mimeType: "image/png",
-        exportWithDarkMode: document.documentElement.classList.contains("dark"),
-      });
-      
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = "mermaid-diagram.png";
-      link.click();
-      URL.revokeObjectURL(url);
-      
-      toast.success("图表已导出为PNG图片");
-    } catch (error) {
-      console.error("Export error:", error);
-      toast.error("导出图表失败");
-    }
-  };
 
   return (
     <div className="space-y-2 h-full">
-      {/* <div className="flex justify-between items-center">
-        <h3 className="text-sm font-medium">图表预览</h3>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleExport}
-          disabled={!mermaidCode || isRendering || renderError}
-          className="h-8 gap-1"
-        >
-          <Download className="h-4 w-4" />
-          导出 PNG
-        </Button>
-      </div> */}
       <div 
         className="border rounded-md h-full relative bg-card"
         style={{ touchAction: "none" }}
@@ -141,4 +99,6 @@ export function ExcalidrawRenderer({ mermaidCode }) {
       </div>
     </div>
   );
-} 
+}
+
+export default ExcalidrawRenderer; 

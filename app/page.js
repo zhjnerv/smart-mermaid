@@ -11,7 +11,7 @@ import { TextInput } from "@/components/text-input";
 import { FileUpload } from "@/components/file-upload";
 import { DiagramTypeSelector } from "@/components/diagram-type-selector";
 import { MermaidEditor } from "@/components/mermaid-editor";
-import { ExcalidrawRenderer } from "@/components/excalidraw-renderer";
+// import { ExcalidrawRenderer } from "@/components/excalidraw-renderer";
 import { generateMermaidFromText } from "@/lib/ai-service";
 import { isWithinCharLimit } from "@/lib/utils";
 import { 
@@ -22,6 +22,9 @@ import {
   DialogDescription,
   DialogFooter
 } from "@/components/ui/dialog";
+import dynamic from "next/dynamic";
+
+const ExcalidrawRenderer = dynamic(() => import("@/components/excalidraw-renderer"), { ssr: false });
 
 const usageLimit = 5;
 
