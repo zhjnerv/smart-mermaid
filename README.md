@@ -2,6 +2,10 @@
 
 一款基于 AI 技术的 Web 应用程序，可将文本内容智能转换为 Mermaid 格式的代码，并将其渲染成可视化图表。
 
+## 预览效果图
+![PixPin_2025-05-22_16-06-35](https://github.com/user-attachments/assets/a3ec8b36-155d-469a-bf4e-c9635df1f963)
+
+
 ## 功能特点
 
 - **文本输入**：
