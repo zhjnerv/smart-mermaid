@@ -10,7 +10,8 @@ Smart Mermaid 是一款利用人工智能技术，将您的文本描述智能转
 
 ## 效果预览
 
-![Smart Mermaid 应用预览图](https://github.com/user-attachments/assets/a3ec8b36-155d-469a-bf4e-c9635df1f963)
+![PixPin_2025-05-23_11-25-46](https://github.com/user-attachments/assets/7ad74f73-68f3-499f-bcb4-f2b3e67336e8)
+
 *图：Smart Mermaid 操作界面与生成的图表*
 
 ## 核心优势
