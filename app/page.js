@@ -7,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Wand2 } from "lucide-react";
 import { Header } from "@/components/header";
+import { SettingsDialog } from "@/components/settings-dialog";
 import { TextInput } from "@/components/text-input";
 import { FileUpload } from "@/components/file-upload";
 import { DiagramTypeSelector } from "@/components/diagram-type-selector";
@@ -14,6 +15,7 @@ import { MermaidEditor } from "@/components/mermaid-editor";
 // import { ExcalidrawRenderer } from "@/components/excalidraw-renderer";
 import { generateMermaidFromText } from "@/lib/ai-service";
 import { isWithinCharLimit } from "@/lib/utils";
+import { isPasswordVerified, hasCustomAIConfig, hasUnlimitedAccess } from "@/lib/config-service";
 import { 
   Dialog,
   DialogContent,
@@ -26,9 +28,28 @@ import dynamic from "next/dynamic";
 
 const ExcalidrawRenderer = dynamic(() => import("@/components/excalidraw-renderer"), { ssr: false });
 
-const usageLimit = 5;
+const usageLimit = parseInt(process.env.NEXT_PUBLIC_DAILY_USAGE_LIMIT || "5");
 
 // Usage tracking functions
+const checkUsageLimit = () => {
+  const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+  const usageData = JSON.parse(localStorage.getItem('usageData') || '{}');
+  const todayUsage = usageData[today] || 0;
+  return todayUsage < usageLimit; // Return true if within limit
+};
+
+const incrementUsage = () => {
+  const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+  const usageData = JSON.parse(localStorage.getItem('usageData') || '{}');
+  
+  if (!usageData[today]) {
+    usageData[today] = 0;
+  }
+  
+  usageData[today] += 1;
+  localStorage.setItem('usageData', JSON.stringify(usageData));
+};
+
 const checkAndIncrementUsage = () => {
   const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
   const usageData = JSON.parse(localStorage.getItem('usageData') || '{}');
@@ -53,6 +74,13 @@ const getRemainingUsage = () => {
   return Math.max(0, usageLimit - todayUsage);
 };
 
+// Preprocessing function for mermaidCode
+const preprocessMermaidCode = (code) => {
+  if (!code) return code;
+  // Remove <br> tags
+  return code.replace(/<br\s*\/?>/gi, '');
+};
+
 export default function Home() {
   const [inputText, setInputText] = useState("");
   const [mermaidCode, setMermaidCode] = useState("");
@@ -62,11 +90,19 @@ export default function Home() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [remainingUsage, setRemainingUsage] = useState(5);
   const [showLimitDialog, setShowLimitDialog] = useState(false);
+  const [showSettingsDialog, setShowSettingsDialog] = useState(false);
+  const [showContactDialog, setShowContactDialog] = useState(false);
+  const [passwordVerified, setPasswordVerified] = useState(false);
+  const [hasCustomConfig, setHasCustomConfig] = useState(false);
   const maxChars = parseInt(process.env.NEXT_PUBLIC_MAX_CHARS || "20000");
 
   useEffect(() => {
     // Update remaining usage count on component mount
     setRemainingUsage(getRemainingUsage());
+    // Check password verification status
+    setPasswordVerified(isPasswordVerified());
+    // Check custom AI config status
+    setHasCustomConfig(hasCustomAIConfig());
   }, []);
 
   const handleTextChange = (text) => {
@@ -89,6 +125,23 @@ export default function Home() {
     setStreamingContent(prev => prev + chunk);
   };
 
+  const handleSettingsClick = () => {
+    setShowSettingsDialog(true);
+  };
+
+  const handleContactClick = () => {
+    setShowContactDialog(true);
+  };
+
+  const handlePasswordVerified = (verified) => {
+    setPasswordVerified(verified);
+  };
+
+  const handleConfigUpdated = () => {
+    // 重新检查自定义配置状态
+    setHasCustomConfig(hasCustomAIConfig());
+  };
+
   const handleGenerateClick = async () => {
     if (!inputText.trim()) {
       toast.error("请输入文本内容");
@@ -100,14 +153,16 @@ export default function Home() {
       return;
     }
 
-    // Check usage limit
-    if (!checkAndIncrementUsage()) {
-      setShowLimitDialog(true);
-      return;
-    }
+    // 检查是否有无限量权限（密码验证通过或有自定义AI配置）
+    const hasUnlimited = hasUnlimitedAccess();
     
-    // Update remaining usage display
-    setRemainingUsage(getRemainingUsage());
+    // 如果没有无限量权限，则检查使用限制（但不增加使用量）
+    if (!hasUnlimited) {
+      if (!checkUsageLimit()) {
+        setShowLimitDialog(true);
+        return;
+      }
+    }
 
     setIsGenerating(true);
     setIsStreaming(true);
@@ -130,7 +185,15 @@ export default function Home() {
         return;
       }
 
-      setMermaidCode(generatedCode);
+      // 只有在API调用成功后才增加使用量
+      if (!hasUnlimited) {
+        incrementUsage();
+        setRemainingUsage(getRemainingUsage());
+      }
+
+      // 预处理生成的mermaidCode
+      const processedCode = preprocessMermaidCode(generatedCode);
+      setMermaidCode(processedCode);
       toast.success("图表生成成功");
     } catch (error) {
       console.error("Generation error:", error);
@@ -143,7 +206,14 @@ export default function Home() {
 
   return (
     <div className="flex flex-col min-h-screen">
-      <Header />
+      <Header 
+        remainingUsage={remainingUsage}
+        usageLimit={usageLimit}
+        onSettingsClick={handleSettingsClick}
+        onContactClick={handleContactClick}
+        isPasswordVerified={passwordVerified}
+        hasCustomConfig={hasCustomConfig}
+      />
       
       <main className="flex-1  py-6 px-4 md:px-6">
         <div className="grid gap-6 md:grid-cols-3">
@@ -176,9 +246,6 @@ export default function Home() {
             </Tabs>
 
             <div className="space-y-4 flex-1">
-              <div className="text-sm text-muted-foreground text-right">
-                今日剩余使用次数: <span className={remainingUsage <= 1 ? "text-red-500 font-bold" : ""}>{remainingUsage}</span>/{usageLimit}
-              </div>
               <Button 
                 onClick={handleGenerateClick} 
                 disabled={isGenerating || !inputText.trim() || !isWithinCharLimit(inputText, maxChars)}
@@ -227,6 +294,39 @@ export default function Home() {
         </div>
       </footer>
 
+      {/* Settings Dialog */}
+      <SettingsDialog 
+        open={showSettingsDialog} 
+        onOpenChange={setShowSettingsDialog}
+        onPasswordVerified={handlePasswordVerified}
+        onConfigUpdated={handleConfigUpdated}
+      />
+
+      {/* Contact Dialog */}
+      <Dialog open={showContactDialog} onOpenChange={setShowContactDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>联系作者</DialogTitle>
+            <DialogDescription>
+              <div className="py-4">
+                <p className="mb-2">如需更多使用次数或技术支持，请扫描下方二维码联系作者</p>
+                <div className="flex justify-center my-4">
+                  <img src="/qrcode.png" alt="联系二维码" className="w-48" />
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  提示：您也可以在设置中配置自己的AI服务密钥，即可享有无限使用权限
+                </p>
+              </div>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="sm:justify-center">
+            <Button variant="secondary" onClick={() => setShowContactDialog(false)}>
+              关闭
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Usage Limit Dialog */}
       <Dialog open={showLimitDialog} onOpenChange={setShowLimitDialog}>
         <DialogContent className="sm:max-w-md">
@@ -235,7 +335,11 @@ export default function Home() {
             <DialogDescription>
               <div className="py-4">
                 <p className="mb-2">您今日的使用次数已达上限 ({usageLimit}次/天)</p>
-                <p>如需更多使用次数，请扫描下方二维码联系作者</p>
+                <p className="mb-4">如需更多使用次数，您可以：</p>
+                <ul className="list-disc list-inside space-y-2 text-sm mb-4">
+                  <li>扫描下方二维码联系作者</li>
+                  <li>在设置中配置您自己的AI服务密钥</li>
+                </ul>
                 <div className="flex justify-center my-4">
                   <img src="/qrcode.png" alt="联系二维码" className="w-48" />
                 </div>

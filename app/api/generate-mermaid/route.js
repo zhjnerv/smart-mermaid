@@ -2,7 +2,7 @@ import { cleanText } from "@/lib/utils";
 
 export async function POST(request) {
   try {
-    const { text, diagramType } = await request.json();
+    const { text, diagramType, aiConfig, accessPassword } = await request.json();
 
     if (!text) {
       return Response.json({ error: "请提供文本内容" }, { status: 400 });
@@ -10,12 +10,47 @@ export async function POST(request) {
 
     const cleanedText = cleanText(text);
     
-    // if (cleanedText.length > parseInt(process.env.NEXT_PUBLIC_MAX_CHARS || "20000")) {
-    //   return Response.json(
-    //     { error: `文本超过${process.env.NEXT_PUBLIC_MAX_CHARS || "20000"}字符限制` }, 
-    //     { status: 400 }
-    //   );
-    // }
+    let finalConfig;
+    
+    // 步骤1: 检查是否有完整的aiConfig
+    const hasCompleteAiConfig = aiConfig?.apiUrl && aiConfig?.apiKey && aiConfig?.modelName;
+    
+    if (hasCompleteAiConfig) {
+      // 如果有完整的aiConfig，直接使用
+      finalConfig = {
+        apiUrl: aiConfig.apiUrl,
+        apiKey: aiConfig.apiKey,
+        modelName: aiConfig.modelName
+      };
+    } else {
+      // 步骤2: 如果没有完整的aiConfig，则检验accessPassword
+      if (accessPassword) {
+        // 步骤3: 如果传入了accessPassword，验证是否有效
+        const correctPassword = process.env.ACCESS_PASSWORD;
+        const isPasswordValid = correctPassword && accessPassword === correctPassword;
+        
+        if (!isPasswordValid) {
+          // 如果密码无效，直接报错
+          return Response.json({ 
+            error: "访问密码无效" 
+          }, { status: 401 });
+        }
+      }
+      
+      // 如果没有传入accessPassword或者accessPassword有效，使用环境变量配置
+      finalConfig = {
+        apiUrl: process.env.AI_API_URL,
+        apiKey: process.env.AI_API_KEY,
+        modelName: process.env.AI_MODEL_NAME
+      };
+    }
+
+    // 检查最终配置是否完整
+    if (!finalConfig.apiUrl || !finalConfig.apiKey || !finalConfig.modelName) {
+      return Response.json({ 
+        error: "AI配置不完整，请在设置中配置API URL、API Key和模型名称" 
+      }, { status: 400 });
+    }
 
     // 构建 prompt 根据图表类型
     let systemPrompt = `
@@ -48,6 +83,13 @@ d) 识别文档中蕴含的逻辑结构和流程。
 * 序号之后不要跟进空格，比如\`1. xxx\`应该改成\`1.xxx\`
 * 用不同的背景色以区分不同层级或是从属的元素\`
 `
+
+systemPrompt+=`
+c) 确保图表清晰、易于理解，准确反映文档的内容和逻辑。
+
+d) 不要使用<artifact>标签包裹代码，而是直接以markdown格式返回代码。
+`
+
 systemPrompt += `
 3. 细节处理：
 a) 避免遗漏文档中的任何重要细节或关系。
@@ -69,8 +111,16 @@ b) 生成的图表代码应可以直接复制并粘贴到支持mermaid语法的�
       },
     ];
 
-    const url =process.env.AI_API_URL.includes("v1")||process.env.AI_API_URL.includes("v3") ? `${process.env.AI_API_URL}/chat/completions` : `${process.env.AI_API_URL}/v1/chat/completions`;
-    console.log(process.env.AI_API_URL,process.env.AI_API_KEY,process.env.AI_MODEL_NAME)
+    // 构建API URL
+    const url = finalConfig.apiUrl.includes("v1") || finalConfig.apiUrl.includes("v3") 
+      ? `${finalConfig.apiUrl}/chat/completions` 
+      : `${finalConfig.apiUrl}/v1/chat/completions`;
+    
+    console.log('Using AI config:', { 
+      url, 
+      modelName: finalConfig.modelName,
+      hasApiKey: !!finalConfig.apiKey,
+    });
 
     // 创建一个流式响应
     const encoder = new TextEncoder();
@@ -82,19 +132,21 @@ b) 生成的图表代码应可以直接复制并粘贴到支持mermaid语法的�
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              "Authorization": `Bearer ${process.env.AI_API_KEY}`,
+              "Authorization": `Bearer ${finalConfig.apiKey}`,
             },
             body: JSON.stringify({
-              model: process.env.AI_MODEL_NAME,
+              model: finalConfig.modelName,
               messages,
               stream: true, // 开启流式输出
             }),
           });
 
           if (!response.ok) {
-            const errorData = await response.json();
-            console.error("AI API Error:", errorData);
-            controller.enqueue(encoder.encode(JSON.stringify({ error: "AI服务返回错误" })));
+            const errorText = await response.text();
+            console.error("AI API Error:", response.status, errorText);
+            controller.enqueue(encoder.encode(JSON.stringify({ 
+              error: `AI服务返回错误 (${response.status}): ${errorText || 'Unknown error'}` 
+            })));
             controller.close();
             return;
           }
@@ -113,8 +165,6 @@ b) 生成的图表代码应可以直接复制并粘贴到支持mermaid语法的�
             
             // 处理数据行
             const lines = chunk.split('\n').filter(line => line.trim() !== '');
-            
-            
             
             for (const line of lines) {
               if (line.startsWith('data: ')) {
@@ -152,7 +202,7 @@ b) 生成的图表代码应可以直接复制并粘贴到支持mermaid语法的�
         } catch (error) {
           console.error("Streaming Error:", error);
           controller.enqueue(encoder.encode(JSON.stringify({ 
-            error: "处理请求时发生错误", 
+            error: `处理请求时发生错误: ${error.message}`, 
             done: true 
           })));
         } finally {
@@ -172,7 +222,7 @@ b) 生成的图表代码应可以直接复制并粘贴到支持mermaid语法的�
   } catch (error) {
     console.error("API Route Error:", error);
     return Response.json(
-      { error: "处理请求时发生错误" }, 
+      { error: `处理请求时发生错误: ${error.message}` }, 
       { status: 500 }
     );
   }
