@@ -66,7 +66,7 @@ function ExcalidrawRenderer({ mermaidCode }) {
 
 
   return (
-    <div className="space-y-2 h-full">
+    <div className="space-y-2 h-full min-h-[200px]">
       <div 
         className="border rounded-md h-full relative bg-card"
         style={{ touchAction: "none" }}
