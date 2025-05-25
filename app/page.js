@@ -532,7 +532,7 @@ export default function Home() {
             <DialogTitle>联系作者</DialogTitle>
             <DialogDescription>
               <div className="py-4">
-                <p className="mb-2">如需更多使用次数或技术支持，请扫描下方二维码联系作者（注明目的）</p>
+                <div className="mb-2">如需更多使用次数或技术支持，请扫描下方二维码联系作者（注明目的）</div>
                 <div className="flex justify-center my-4">
                   <img src="/qrcode.png" alt="联系二维码" className="w-48" />
                 </div>

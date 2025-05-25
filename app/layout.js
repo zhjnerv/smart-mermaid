@@ -20,13 +20,19 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="zh-CN" suppressHydrationWarning>
-      <body
+    <html lang="zh-CN" suppressHydrationWarning={true}>
+      <body 
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        suppressHydrationWarning={true} // <--- 在 body 标签也添加 suppressHydrationWarning
       >
-        <ThemeProvider defaultTheme="system" storageKey="theme">
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
           {children}
-          <Toaster />
+          <Toaster richColors />
         </ThemeProvider>
       </body>
     </html>

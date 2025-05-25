@@ -2,7 +2,7 @@
 
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
-import { FileCode2, Github, Settings, Plus } from "lucide-react";
+import { FileCode2, Settings, Plus, SquarePen } from "lucide-react";// <--- 添加 SquarePen
 
 export function Header({ 
   remainingUsage = 0, 
@@ -49,16 +49,17 @@ export function Header({
             <Settings className="h-5 w-5" />
           </Button>
           <a 
-            href="https://github.com/liujuntao123/smart-mermaid"
+            href="https://zhjwork.online" // 这是您之前修改的博客链接
             target="_blank"
             rel="noopener noreferrer"
             className="hover:opacity-80"
           >
-            <Github className="h-5 w-5" />
+            {/* <Github className="h-5 w-5" /> */}
+            <SquarePen className="h-5 w-5" /> {/* <--- 将 Github 替换为 SquarePen */}
           </a>
           <ThemeToggle />
         </div>
       </div>
     </header>
   );
-} 
+}
