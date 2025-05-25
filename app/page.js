@@ -532,7 +532,7 @@ export default function Home() {
             <DialogTitle>联系作者</DialogTitle>
             <DialogDescription>
               <div className="py-4">
-                <div className="mb-2">如需更多使用次数或技术支持，请扫描下方二维码联系作者（注明目的）</div>
+                <div className="mb-2">如需更多使用次数，扫描下方二维码关注公众号，发送”流程图密码“获取访问密码，免费获得无限使用权限</div>
                 <div className="flex justify-center my-4">
                   <img src="/qrcode.png" alt="联系二维码" className="w-48" />
                 </div>
@@ -560,7 +560,7 @@ export default function Home() {
                 <p className="mb-2">您今日的使用次数已达上限 ({usageLimit}次/天)</p>
                 <p className="mb-4">如需更多使用次数，您可以：</p>
                 <ul className="list-disc list-inside space-y-2 text-sm mb-4">
-                  <li>扫描下方二维码联系作者（注明目的）</li>
+                  <li>扫描下方二维码关注公众号，发送”流程图密码“获取访问密码，免费获得无限使用权限</li>
                   <li>在设置中配置您自己的AI服务密钥</li>
                 </ul>
                 <div className="flex justify-center my-4">
