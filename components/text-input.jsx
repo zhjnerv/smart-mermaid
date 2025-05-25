@@ -26,7 +26,7 @@ export function TextInput({ value, onChange, maxChars }) {
       <div className="flex-1 min-h-0">
         <Textarea
           ref={textareaRef}
-          placeholder="请在此输入或粘贴文本内容..."
+          placeholder="请在此输入或粘贴文本内容...\n实施例的内容为佳，可直接形成适配的说明附图..."
           className="w-full h-full font-mono text-sm overflow-y-auto resize-none"
           value={value}
           onChange={handleChange}
@@ -41,4 +41,4 @@ export function TextInput({ value, onChange, maxChars }) {
       </div>
     </div>
   );
-} 
+}
