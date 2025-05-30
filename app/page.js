@@ -1,17 +1,19 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Wand2 } from "lucide-react";
+import { Wand2, PanelLeftClose, PanelLeftOpen, Monitor, FileImage, RotateCcw, Maximize } from "lucide-react";
 import { Header } from "@/components/header";
 import { SettingsDialog } from "@/components/settings-dialog";
 import { TextInput } from "@/components/text-input";
 import { FileUpload } from "@/components/file-upload";
 import { DiagramTypeSelector } from "@/components/diagram-type-selector";
+import { ModelSelector } from "@/components/model-selector";
 import { MermaidEditor } from "@/components/mermaid-editor";
+import { MermaidRenderer } from "@/components/mermaid-renderer";
 // import { ExcalidrawRenderer } from "@/components/excalidraw-renderer";
 import { generateMermaidFromText } from "@/lib/ai-service";
 import { isWithinCharLimit } from "@/lib/utils";
@@ -94,6 +96,11 @@ export default function Home() {
   const [showContactDialog, setShowContactDialog] = useState(false);
   const [passwordVerified, setPasswordVerified] = useState(false);
   const [hasCustomConfig, setHasCustomConfig] = useState(false);
+  
+  // 新增状态：左侧面板折叠和渲染模式
+  const [isLeftPanelCollapsed, setIsLeftPanelCollapsed] = useState(false);
+  const [renderMode, setRenderMode] = useState("excalidraw"); // "excalidraw" | "mermaid"
+  
   const maxChars = parseInt(process.env.NEXT_PUBLIC_MAX_CHARS || "20000");
 
   useEffect(() => {
@@ -141,6 +148,21 @@ export default function Home() {
     // 重新检查自定义配置状态
     setHasCustomConfig(hasCustomAIConfig());
   };
+
+  // 切换左侧面板
+  const toggleLeftPanel = () => {
+    setIsLeftPanelCollapsed(!isLeftPanelCollapsed);
+  };
+
+  // 切换渲染模式
+  const toggleRenderMode = () => {
+    setRenderMode(prev => prev === "excalidraw" ? "mermaid" : "excalidraw");
+  };
+
+  // 使用useCallback优化ModelSelector的回调
+  const handleModelChange = useCallback((modelId) => {
+    console.log('Selected model:', modelId);
+  }, []);
 
   const handleGenerateClick = async () => {
     if (!inputText.trim()) {
@@ -205,7 +227,7 @@ export default function Home() {
   };
 
   return (
-    <div className="flex flex-col min-h-screen">
+    <div className="flex flex-col h-screen overflow-hidden">
       <Header 
         remainingUsage={remainingUsage}
         usageLimit={usageLimit}
@@ -215,81 +237,175 @@ export default function Home() {
         hasCustomConfig={hasCustomConfig}
       />
       
-      <main className="flex-1  py-6 px-4 md:px-6">
-        <div className="grid gap-6 md:grid-cols-3">
-          <div className="space-y-6 md:col-span-1 flex flex-col">
-            {/* <h2 className="text-2xl font-bold">文本输入</h2> */}
-            
-            <Tabs defaultValue="manual">
-              <div className="flex justify-between items-center">
-                <TabsList>
-                  <TabsTrigger value="manual">手动输入</TabsTrigger>
-                  <TabsTrigger value="file">文件上传</TabsTrigger>
-                </TabsList>
-                <div className="w-40">
-                  <DiagramTypeSelector 
-                    value={diagramType} 
-                    onChange={handleDiagramTypeChange} 
-                  />
+      <main className="flex-1 overflow-hidden">
+        <div className="h-full p-4 md:p-6">
+          <div 
+            className={`h-full grid gap-4 md:gap-6 transition-all duration-300 ${
+              isLeftPanelCollapsed ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-3'
+            }`}
+          >
+            {/* 左侧面板 */}
+            <div className={`${
+              isLeftPanelCollapsed ? 'hidden md:hidden' : 'col-span-1'
+            } flex flex-col h-full overflow-hidden`}>
+              
+              <Tabs defaultValue="manual" className="flex flex-col h-full">
+                {/* 固定高度的顶部控制栏 */}
+                <div className="h-auto md:h-12 flex flex-col md:flex-row justify-between items-start md:items-center gap-2 flex-shrink-0 pb-2 md:pb-0">
+                  <TabsList className="h-9 w-full md:w-auto">
+                    <TabsTrigger value="manual" className="flex-1 md:flex-none">手动输入</TabsTrigger>
+                    <TabsTrigger value="file" className="flex-1 md:flex-none">文件上传</TabsTrigger>
+                  </TabsList>
+                  <div className="flex items-center gap-2 w-full md:w-auto flex-wrap">
+                    <ModelSelector onModelChange={handleModelChange} />
+                    <div className="flex-1 md:flex-none min-w-0">
+                      <DiagramTypeSelector 
+                        value={diagramType} 
+                        onChange={handleDiagramTypeChange} 
+                      />
+                    </div>
+                  </div>
                 </div>
-              </div>
-              <TabsContent value="manual" className="mt-4">
-                <TextInput 
-                  value={inputText} 
-                  onChange={handleTextChange} 
-                  maxChars={maxChars}
-                />
-              </TabsContent>
-              <TabsContent value="file" className="mt-4">
-                <FileUpload onTextExtracted={handleFileTextExtracted} />
-              </TabsContent>
-            </Tabs>
+                
+                {/* 主内容区域 */}
+                <div className="flex-1 flex flex-col overflow-hidden mt-2 md:mt-4">
+                  {/* 输入区域 - 固定高度 */}
+                  <div className="h-40 md:h-56 flex-shrink-0">
+                    <TabsContent value="manual" className="h-full mt-0">
+                      <TextInput 
+                        value={inputText} 
+                        onChange={handleTextChange} 
+                        maxChars={maxChars}
+                      />
+                    </TabsContent>
+                    <TabsContent value="file" className="h-full mt-0">
+                      <FileUpload onTextExtracted={handleFileTextExtracted} />
+                    </TabsContent>
+                  </div>
 
-            <div className="space-y-4 flex-1">
-              <Button 
-                onClick={handleGenerateClick} 
-                disabled={isGenerating || !inputText.trim() || !isWithinCharLimit(inputText, maxChars)}
-                className="w-full"
-              >
-                {isGenerating ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-background mr-2"></div>
-                    生成中...
-                  </>
-                ) : (
-                  <>
-                    <Wand2 className="mr-2 h-4 w-4" />
-                    生成图表
-                  </>
-                )}
-              </Button>
+                  {/* 生成按钮 - 固定高度 */}
+                  <div className="h-16 flex items-center flex-shrink-0">
+                    <Button 
+                      onClick={handleGenerateClick} 
+                      disabled={isGenerating || !inputText.trim() || !isWithinCharLimit(inputText, maxChars)}
+                      className="w-full h-10"
+                    >
+                      {isGenerating ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-background mr-2"></div>
+                          生成中...
+                        </>
+                      ) : (
+                        <>
+                          <Wand2 className="mr-2 h-4 w-4" />
+                          生成图表
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                  
+                  {/* 编辑器区域 - 占用剩余空间 */}
+                  <div className="flex-1 min-h-0">
+                    <MermaidEditor 
+                      code={mermaidCode} 
+                      onChange={handleMermaidCodeChange}
+                      streamingContent={streamingContent}
+                      isStreaming={isStreaming}
+                    />
+                  </div>
+                </div>
+              </Tabs>
             </div>
             
-            {/* <Card className=" p-0"> */}
-              {/* <CardContent className="p-4"> */}
-                <MermaidEditor 
-                  code={mermaidCode} 
-                  onChange={handleMermaidCodeChange}
-                  streamingContent={streamingContent}
-                  isStreaming={isStreaming}
-                />
-              {/* </CardContent> */}
-            {/* </Card> */}
-          </div>
-          
-          <div className="space-y-6 md:col-span-2">
-            
-            {/* <Card className="h-full p-0"> */}
-              {/* <CardContent className="p-4 h-full"> */}
-                <ExcalidrawRenderer mermaidCode={mermaidCode} />
-              {/* </CardContent> */}
-            {/* </Card> */}
+            {/* 右侧面板 */}
+            <div className={`${
+              isLeftPanelCollapsed ? 'col-span-1' : 'col-span-1 md:col-span-2'
+            } flex flex-col h-full overflow-hidden`}>
+              {/* 控制按钮栏 - 固定高度 */}
+              <div className="h-12 flex justify-between items-center flex-shrink-0">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={toggleLeftPanel}
+                  className="h-9"
+                >
+                  {isLeftPanelCollapsed ? (
+                    <>
+                      <PanelLeftOpen className="h-4 w-4" />
+                      <span className="hidden sm:inline ml-2">显示编辑面板</span>
+                    </>
+                  ) : (
+                    <>
+                      <PanelLeftClose className="h-4 w-4" />
+                      <span className="hidden sm:inline ml-2">隐藏编辑面板</span>
+                    </>
+                  )}
+                </Button>
+
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={toggleRenderMode}
+                    className="h-9"
+                  >
+                    {renderMode === "excalidraw" ? (
+                      <>
+                        <FileImage className="h-4 w-4" />
+                        <span className="hidden sm:inline ml-2">Mermaid</span>
+                      </>
+                    ) : (
+                      <>
+                        <Monitor className="h-4 w-4" />
+                        <span className="hidden sm:inline ml-2">Excalidraw</span>
+                      </>
+                    )}
+                  </Button>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      window.dispatchEvent(new CustomEvent('resetView'));
+                    }}
+                    className="h-9"
+                    title="重置视图"
+                  >
+                    <RotateCcw className="h-4 w-4" />
+                  </Button>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      window.dispatchEvent(new CustomEvent('toggleFullscreen'));
+                    }}
+                    className="h-9"
+                    title="全屏显示"
+                  >
+                    <Maximize className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+
+              {/* 渲染器区域 - 占用剩余空间 */}
+              <div className="flex-1 min-h-0 mt-4" style={{ minHeight: '600px' }}>
+                {renderMode === "excalidraw" ? (
+                  <ExcalidrawRenderer mermaidCode={mermaidCode} />
+                ) : (
+                  <MermaidRenderer 
+                    mermaidCode={mermaidCode} 
+                    onChange={handleMermaidCodeChange}
+                  />
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </main>
       
-      <footer className="border-t py-4 px-6">
-        <div className=" text-center text-sm text-muted-foreground">
+      <footer className="h-12 border-t flex items-center justify-center flex-shrink-0">
+        <div className="text-center text-sm text-muted-foreground">
           AI 驱动的文本转 Mermaid 图表 Web 应用 &copy; {new Date().getFullYear()}
         </div>
       </footer>

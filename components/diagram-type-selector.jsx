@@ -18,10 +18,10 @@ const DIAGRAM_TYPES = [
 
 export function DiagramTypeSelector({ value, onChange }) {
   return (
-    <div className="flex items-center justify-end">
+    <div className="flex items-center justify-end w-full md:w-auto">
       {/* <Label htmlFor="diagram-type">图表类型</Label> */}
       <Select value={value} onValueChange={onChange}>
-        <SelectTrigger id="diagram-type">
+        <SelectTrigger id="diagram-type" className="w-full md:w-auto text-xs">
           <SelectValue placeholder="选择图表类型" />
         </SelectTrigger>
         <SelectContent>

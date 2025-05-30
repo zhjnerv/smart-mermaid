@@ -2,7 +2,7 @@ import { cleanText } from "@/lib/utils";
 
 export async function POST(request) {
   try {
-    const { text, diagramType, aiConfig, accessPassword } = await request.json();
+    const { text, diagramType, aiConfig, accessPassword, selectedModel } = await request.json();
 
     if (!text) {
       return Response.json({ error: "请提供文本内容" }, { status: 400 });
@@ -38,10 +38,11 @@ export async function POST(request) {
       }
       
       // 如果没有传入accessPassword或者accessPassword有效，使用环境变量配置
+      // 如果有选择的模型，使用选择的模型，否则使用默认模型
       finalConfig = {
         apiUrl: process.env.AI_API_URL,
         apiKey: process.env.AI_API_KEY,
-        modelName: process.env.AI_MODEL_NAME
+        modelName: selectedModel || process.env.AI_MODEL_NAME
       };
     }
 
