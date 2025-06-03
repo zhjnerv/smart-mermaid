@@ -7,7 +7,7 @@ Smart Mermaid 是一款利用人工智能技术，将您的文本描述智能转
 [https://smart-mermaid.aizhi.site](https://smart-mermaid.aizhi.site)
 
 **提示：** 本应用完全免费，应用已内置 API Key，您可以直接免费使用。为防止资源滥用，我们设置了每位用户每日 5 次的免费生成额度。
-如有更多需求，可联系作者免费添加。
+如有更多需求，可联系作者免费添加（为避免骚扰，加好友时请注明目的）。
 
 <img src="https://github.com/user-attachments/assets/ce261409-13ff-4f6a-b749-13112f3b3067" width="200px">
 
