@@ -23,7 +23,7 @@ const Excalidraw = dynamic(
   }
 );
 
-function ExcalidrawRenderer({ mermaidCode }) {
+function ExcalidrawRenderer({ mermaidCode, onErrorChange }) {
   const [excalidrawElements, setExcalidrawElements] = useState([]);
   const [excalidrawFiles, setExcalidrawFiles] = useState({});
   const [excalidrawAPI, setExcalidrawAPI] = useState(null);
@@ -82,10 +82,21 @@ function ExcalidrawRenderer({ mermaidCode }) {
       excalidrawAPI.scrollToContent(convertedElements, {
         fitToContent: true,
       });
+
+      // 通知父组件没有错误
+      if (onErrorChange) {
+        onErrorChange(null, false);
+      }
     } catch (error) {
       console.error("Mermaid rendering error:", error);
-      setRenderError("无法渲染 Mermaid 代码。请检查语法是否正确。");
+      const errorMsg = `${error.message}`;
+      setRenderError(errorMsg);
       toast.error("图表渲染失败，请检查 Mermaid 代码语法");
+
+      // 通知父组件有错误，与 mermaid-renderer 保持一致
+      if (onErrorChange) {
+        onErrorChange(errorMsg, true);
+      }
     } finally {
       setIsRendering(false);
     }

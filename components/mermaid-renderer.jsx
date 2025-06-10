@@ -12,7 +12,7 @@ import {
 import { copyToClipboard } from "@/lib/utils";
 import { toast } from "sonner";
 
-export function MermaidRenderer({ mermaidCode, onChange }) {
+export function MermaidRenderer({ mermaidCode, onChange, onErrorChange }) {
   const mermaidRef = useRef(null);
   const containerRef = useRef(null);
   const [copied, setCopied] = useState(false);
@@ -52,6 +52,10 @@ export function MermaidRenderer({ mermaidCode, onChange }) {
     const renderMermaid = async () => {
       if (!mermaidCode || !mermaidRef.current) {
         setIsLoading(false);
+        // 通知父组件没有错误（因为没有代码）
+        if (onErrorChange) {
+          onErrorChange(null, false);
+        }
         return;
       }
 
@@ -92,8 +96,13 @@ export function MermaidRenderer({ mermaidCode, onChange }) {
         } catch (parseError) {
           // 语法错误，显示详细信息但不创建DOM元素
           if (mounted) {
-            setError('Mermaid语法错误: ' + parseError.message);
+            const errorMsg = 'Mermaid语法错误: ' + parseError.message;
+            setError(errorMsg);
             setIsLoading(false);
+            // 通知父组件有错误
+            if (onErrorChange) {
+              onErrorChange(errorMsg, true);
+            }
           }
           return;
         }
@@ -116,13 +125,22 @@ export function MermaidRenderer({ mermaidCode, onChange }) {
         if (mounted) {
           mermaidRef.current.innerHTML = svg;
           setIsLoading(false);
+          // 通知父组件没有错误
+          if (onErrorChange) {
+            onErrorChange(null, false);
+          }
         }
       } catch (err) {
         console.error('Mermaid rendering error:', err);
         
         if (mounted) {
-          setError('渲染Mermaid图表时出错: ' + err.message);
+          const errorMsg = '渲染Mermaid图表时出错: ' + err.message;
+          setError(errorMsg);
           setIsLoading(false);
+          // 通知父组件有错误
+          if (onErrorChange) {
+            onErrorChange(errorMsg, true);
+          }
         }
       }
     };

@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Wand2, PanelLeftClose, PanelLeftOpen, Monitor, FileImage, RotateCcw, Maximize } from "lucide-react";
+import { Wand2, PanelLeftClose, PanelLeftOpen, Monitor, FileImage, RotateCcw, Maximize, RotateCw } from "lucide-react";
 import { Header } from "@/components/header";
 import { SettingsDialog } from "@/components/settings-dialog";
 import { TextInput } from "@/components/text-input";
@@ -18,6 +18,7 @@ import { MermaidRenderer } from "@/components/mermaid-renderer";
 import { generateMermaidFromText } from "@/lib/ai-service";
 import { isWithinCharLimit } from "@/lib/utils";
 import { isPasswordVerified, hasCustomAIConfig, hasUnlimitedAccess } from "@/lib/config-service";
+import { autoFixMermaidCode, toggleMermaidDirection } from "@/lib/mermaid-fixer";
 import { 
   Dialog,
   DialogContent,
@@ -100,6 +101,11 @@ export default function Home() {
   // 新增状态：左侧面板折叠和渲染模式
   const [isLeftPanelCollapsed, setIsLeftPanelCollapsed] = useState(false);
   const [renderMode, setRenderMode] = useState("excalidraw"); // "excalidraw" | "mermaid"
+  const [isFixing, setIsFixing] = useState(false);
+
+  // 错误状态管理
+  const [errorMessage, setErrorMessage] = useState(null);
+  const [hasError, setHasError] = useState(false);
   
   const maxChars = parseInt(process.env.NEXT_PUBLIC_MAX_CHARS || "20000");
 
@@ -149,6 +155,12 @@ export default function Home() {
     setHasCustomConfig(hasCustomAIConfig());
   };
 
+  // 处理错误状态变化
+  const handleErrorChange = (error, hasErr) => {
+    setErrorMessage(error);
+    setHasError(hasErr);
+  };
+
   // 切换左侧面板
   const toggleLeftPanel = () => {
     setIsLeftPanelCollapsed(!isLeftPanelCollapsed);
@@ -163,6 +175,68 @@ export default function Home() {
   const handleModelChange = useCallback((modelId) => {
     console.log('Selected model:', modelId);
   }, []);
+
+  // 自动修复Mermaid代码
+  const handleAutoFixMermaid = async () => {
+    if (!mermaidCode) {
+      toast.error("没有代码可以修复");
+      return;
+    }
+
+    setIsFixing(true);
+    setStreamingContent(""); // 清空流式内容，准备显示修复内容
+
+    try {
+      // 流式修复回调函数
+      const handleFixChunk = (chunk) => {
+        setStreamingContent(prev => prev + chunk);
+      };
+
+      // 传递错误信息给AI修复函数
+      const result = await autoFixMermaidCode(mermaidCode, errorMessage, handleFixChunk);
+
+      if (result.error) {
+        toast.error(result.error);
+        // 如果有基础修复的代码，仍然应用它
+        if (result.fixedCode !== mermaidCode) {
+          setMermaidCode(result.fixedCode);
+          toast.info("已应用基础修复");
+        }
+      } else {
+        if (result.fixedCode !== mermaidCode) {
+          setMermaidCode(result.fixedCode);
+          toast.success("AI修复完成");
+        } else {
+          toast.info("代码看起来没有问题");
+        }
+      }
+    } catch (error) {
+      console.error("修复失败:", error);
+      toast.error("修复失败，请稍后重试");
+    } finally {
+      setIsFixing(false);
+      // 修复完成后清空流式内容
+      setTimeout(() => {
+        setStreamingContent("");
+      }, 1000);
+    }
+  };
+
+  // 切换图表方向
+  const handleToggleMermaidDirection = () => {
+    if (!mermaidCode) {
+      toast.error("没有代码可以切换方向");
+      return;
+    }
+
+    const toggledCode = toggleMermaidDirection(mermaidCode);
+    if (toggledCode !== mermaidCode) {
+      setMermaidCode(toggledCode);
+      toast.success("图表方向已切换");
+    } else {
+      toast.info("未检测到可切换的方向");
+    }
+  };
 
   const handleGenerateClick = async () => {
     if (!inputText.trim()) {
@@ -306,11 +380,14 @@ export default function Home() {
                   
                   {/* 编辑器区域 - 占用剩余空间 */}
                   <div className="flex-1 min-h-0">
-                    <MermaidEditor 
-                      code={mermaidCode} 
+                    <MermaidEditor
+                      code={mermaidCode}
                       onChange={handleMermaidCodeChange}
                       streamingContent={streamingContent}
                       isStreaming={isStreaming}
+                      errorMessage={errorMessage}
+                      hasError={hasError}
+                      onStreamChunk={handleStreamChunk}
                     />
                   </div>
                 </div>
@@ -343,6 +420,39 @@ export default function Home() {
                 </Button>
 
                 <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleAutoFixMermaid}
+                    disabled={!mermaidCode || isFixing || !hasError}
+                    className="h-9"
+                    title={hasError ? "使用AI智能修复代码问题" : "当前代码没有错误，无需修复"}
+                  >
+                    {isFixing ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current"></div>
+                        <span className="hidden lg:inline ml-2">修复中...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Wand2 className="h-4 w-4" />
+                        <span className="hidden lg:inline ml-2">AI修复</span>
+                      </>
+                    )}
+                  </Button>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleToggleMermaidDirection}
+                    disabled={!mermaidCode}
+                    className="h-9"
+                    title="切换图表方向 (横向/纵向)"
+                  >
+                    <RotateCw className="h-4 w-4" />
+                    <span className="hidden lg:inline ml-2">切换方向</span>
+                  </Button>
+
                   <Button
                     variant="outline"
                     size="sm"
@@ -391,11 +501,15 @@ export default function Home() {
               {/* 渲染器区域 - 占用剩余空间 */}
               <div className="flex-1 min-h-0 mt-4" style={{ minHeight: '600px' }}>
                 {renderMode === "excalidraw" ? (
-                  <ExcalidrawRenderer mermaidCode={mermaidCode} />
+                  <ExcalidrawRenderer
+                    mermaidCode={mermaidCode}
+                    onErrorChange={handleErrorChange}
+                  />
                 ) : (
-                  <MermaidRenderer 
-                    mermaidCode={mermaidCode} 
+                  <MermaidRenderer
+                    mermaidCode={mermaidCode}
                     onChange={handleMermaidCodeChange}
+                    onErrorChange={handleErrorChange}
                   />
                 )}
               </div>

@@ -1,20 +1,16 @@
-import { cleanText } from "@/lib/utils";
-
 export async function POST(request) {
   try {
-    const { text, diagramType, aiConfig, accessPassword, selectedModel } = await request.json();
+    const { mermaidCode, errorMessage, aiConfig, accessPassword, selectedModel } = await request.json();
 
-    if (!text) {
-      return Response.json({ error: "请提供文本内容" }, { status: 400 });
+    if (!mermaidCode) {
+      return Response.json({ error: "请提供需要修复的Mermaid代码" }, { status: 400 });
     }
 
-    const cleanedText = cleanText(text);
-    
     let finalConfig;
-    
+
     // 步骤1: 检查是否有完整的aiConfig
     const hasCompleteAiConfig = aiConfig?.apiUrl && aiConfig?.apiKey && aiConfig?.modelName;
-    
+
     if (hasCompleteAiConfig) {
       // 如果有完整的aiConfig，直接使用
       finalConfig = {
@@ -28,15 +24,15 @@ export async function POST(request) {
         // 步骤3: 如果传入了accessPassword，验证是否有效
         const correctPassword = process.env.ACCESS_PASSWORD;
         const isPasswordValid = correctPassword && accessPassword === correctPassword;
-        
+
         if (!isPasswordValid) {
           // 如果密码无效，直接报错
-          return Response.json({ 
-            error: "访问密码无效" 
+          return Response.json({
+            error: "访问密码无效"
           }, { status: 401 });
         }
       }
-      
+
       // 如果没有传入accessPassword或者accessPassword有效，使用环境变量配置
       // 如果有选择的模型，使用选择的模型，否则使用默认模型
       finalConfig = {
@@ -48,77 +44,51 @@ export async function POST(request) {
 
     // 检查最终配置是否完整
     if (!finalConfig.apiUrl || !finalConfig.apiKey || !finalConfig.modelName) {
-      return Response.json({ 
-        error: "AI配置不完整，请在设置中配置API URL、API Key和模型名称" 
+      return Response.json({
+        error: "AI配置不完整，请在设置中配置API URL、API Key和模型名称"
       }, { status: 400 });
     }
 
-    // 构建 prompt 根据图表类型
-    let systemPrompt = `
-    目的和目标：
-* 理解用户提供的文档的结构和逻辑关系。
-* 准确地将文档内容和关系转化为符合mermaid语法的图表代码。
-* 确保图表中包含文档的所有关键元素和它们之间的联系。
+    // 构建用户提示词，包含错误信息（如果有的话）
+    let userPrompt = `请修复以下Mermaid代码中的问题。请直接返回修复后的代码，且不要返回其他的内容，也不要有修改说明的相关注释，并使用\`\`\`mermaid包裹。`;
+    userPrompt += `
+    mermaid代码为：
+"${mermaidCode}"
+`;
 
-行为和规则：
-1. 分析文档：
-a) 仔细阅读和分析用户提供的文档内容。
-b) 识别文档中的不同元素（如概念、实体、步骤、流程等）。
-c) 理解这些元素之间的各种关系（如从属、包含、流程、因果等）。
-d) 识别文档中蕴含的逻辑结构和流程。
-2. 图表生成：
-    `
-    
-    if (diagramType && diagramType !== "auto") {
-      systemPrompt += `a) 请特别生成 ${diagramType} 类型的图表。`;
-    } else {
-      systemPrompt += `a) 根据分析结果，选择最适合表达文档结构的mermaid图表类型（流程图、时序图、类图中的一种）。`;
+    // 如果有具体的错误信息，添加到提示词中
+    if (errorMessage && errorMessage.trim()) {
+      userPrompt += `
+错误信息为：
+"${errorMessage}"
+`;
     }
 
-    systemPrompt += `
-    b) 使用正确的mermaid语法创建图表代码，充分参考下面的Mermaid 语法特殊字符说明："""
-* Mermaid 的核心特殊字符主要用于**定义图表结构和关系**。
-* 要在节点 ID 或标签中**显示**特殊字符(如括号，引号）或包含**空格**，最常用方法是用**双引号 \`""\`** 包裹。
-* 在标签文本（引号内）中显示 HTML 特殊字符 (\`<\`, \`>\`, \`&\`) 或 \`#\` 等，应使用 **HTML 实体编码**。
-* 使用 \`%%\` 进行**注释**。
-* 序号之后不要跟进空格，比如\`1. xxx\`应该改成\`1.xxx\`
-* 用不同的背景色以区分不同层级或是从属的元素\`
-`
-
-systemPrompt+=`
-c) 确保图表清晰、易于理解，准确反映文档的内容和逻辑。
-
-d) 不要使用<artifact>标签包裹代码，而是直接以markdown格式返回代码,除了代码外不要返回其他内容。
-`
-
-systemPrompt += `
-3. 细节处理：
-a) 避免遗漏文档中的任何重要细节或关系。
-b) 生成的图表代码应可以直接复制并粘贴到支持mermaid语法的工具或平台中使用。
-整体语气：
-* 保持专业和严谨的态度。
-* 清晰、准确地表达图表的内容。
-* 在需要时，可以提供简短的解释或建议。
-`
+    userPrompt += `你的主要修改思路是：
+1. 分析错误信息，理解错误原因
+2. 检查是否有特殊字符，如果有，使用引号包裹
+3. 检查是否有关键字，如果有则使用别的字符代替
+4. 修复其他问题
+`;
 
     const messages = [
       {
         role: "system",
-        content: systemPrompt,
+        content: "你是一个专业的Mermaid图表代码修复专家。你的任务是分析和修复Mermaid代码中的各种问题。",
       },
       {
         role: "user",
-        content: cleanedText,
+        content: userPrompt,
       },
     ];
 
     // 构建API URL
-    const url = finalConfig.apiUrl.includes("v1") || finalConfig.apiUrl.includes("v3") 
-      ? `${finalConfig.apiUrl}/chat/completions` 
+    const url = finalConfig.apiUrl.includes("v1") || finalConfig.apiUrl.includes("v3")
+      ? `${finalConfig.apiUrl}/chat/completions`
       : `${finalConfig.apiUrl}/v1/chat/completions`;
-    
-    console.log('Using AI config:', { 
-      url, 
+
+    console.log('Using AI config for fix-mermaid:', {
+      url,
       modelName: finalConfig.modelName,
       hasApiKey: !!finalConfig.apiKey,
     });
@@ -145,8 +115,8 @@ b) 生成的图表代码应可以直接复制并粘贴到支持mermaid语法的�
           if (!response.ok) {
             const errorText = await response.text();
             console.error("AI API Error:", response.status, errorText);
-            controller.enqueue(encoder.encode(JSON.stringify({ 
-              error: `AI服务返回错误 (${response.status}): ${errorText || 'Unknown error'}` 
+            controller.enqueue(encoder.encode(JSON.stringify({
+              error: `AI服务返回错误 (${response.status}): ${errorText || 'Unknown error'}`
             })));
             controller.close();
             return;
@@ -156,31 +126,31 @@ b) 生成的图表代码应可以直接复制并粘贴到支持mermaid语法的�
           const reader = response.body.getReader();
           const decoder = new TextDecoder();
           let mermaidCode = "";
-          
+
           while (true) {
             const { done, value } = await reader.read();
             if (done) break;
-            
+
             // 解析返回的数据块
             const chunk = decoder.decode(value, { stream: true });
-            
+
             // 处理数据行
             const lines = chunk.split('\n').filter(line => line.trim() !== '');
-            
+
             for (const line of lines) {
               if (line.startsWith('data: ')) {
                 const data = line.substring(6);
                 if (data === '[DONE]') continue;
-                
+
                 try {
                   const parsed = JSON.parse(data);
                   const content = parsed.choices[0]?.delta?.content || '';
                   if (content) {
                     mermaidCode += content;
                     // 发送给客户端
-                    controller.enqueue(encoder.encode(JSON.stringify({ 
+                    controller.enqueue(encoder.encode(JSON.stringify({
                       chunk: content,
-                      done: false 
+                      done: false
                     })));
                   }
                 } catch (e) {
@@ -189,22 +159,21 @@ b) 生成的图表代码应可以直接复制并粘贴到支持mermaid语法的�
               }
             }
           }
-          
+
           // 提取代码块中的内容（如果有代码块标记）
-          const codeBlockMatch = mermaidCode.match(/```(?:mermaid)?\s*([\s\S]*?)```/);
-          const finalCode = codeBlockMatch ? codeBlockMatch[1].trim() : mermaidCode;
-          
+          const fixedCode = parseAIResponse(mermaidCode, mermaidCode);
+
           // 发送完成信号
-          controller.enqueue(encoder.encode(JSON.stringify({ 
-            mermaidCode: finalCode,
-            done: true 
+          controller.enqueue(encoder.encode(JSON.stringify({
+            fixedCode: fixedCode,
+            done: true
           })));
-          
+
         } catch (error) {
           console.error("Streaming Error:", error);
-          controller.enqueue(encoder.encode(JSON.stringify({ 
-            error: `处理请求时发生错误: ${error.message}`, 
-            done: true 
+          controller.enqueue(encoder.encode(JSON.stringify({
+            error: `处理请求时发生错误: ${error.message}`,
+            done: true
           })));
         } finally {
           controller.close();
@@ -223,8 +192,44 @@ b) 生成的图表代码应可以直接复制并粘贴到支持mermaid语法的�
   } catch (error) {
     console.error("API Route Error:", error);
     return Response.json(
-      { error: `处理请求时发生错误: ${error.message}` }, 
+      { error: `处理请求时发生错误: ${error.message}` },
       { status: 500 }
     );
   }
-} 
+}
+
+/**
+ * 解析AI响应，提取修复后的代码
+ */
+function parseAIResponse(aiResponse, originalCode) {
+  try {
+    // 尝试提取代码块
+    const codeBlockRegex = /```(?:mermaid)?\s*([\s\S]*?)\s*```/;
+    const match = aiResponse.match(codeBlockRegex);
+
+    let fixedCode = originalCode;
+
+    if (match && match[1]) {
+      fixedCode = match[1].trim();
+    } else {
+      // 如果没有找到代码块，尝试其他方式提取
+      const lines = aiResponse.split('\n');
+      const codeLines = lines.filter(line =>
+        line.trim() &&
+        !line.includes('修复') &&
+        !line.includes('问题') &&
+        !line.includes('说明') &&
+        (line.includes('flowchart') || line.includes('graph') || line.includes('-->') || line.includes('[') || line.includes(']'))
+      );
+
+      if (codeLines.length > 0) {
+        fixedCode = codeLines.join('\n').trim();
+      }
+    }
+
+    return fixedCode;
+  } catch (error) {
+    console.error("解析AI响应时出错:", error);
+    return originalCode;
+  }
+}
