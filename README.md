@@ -308,6 +308,10 @@ npm run start
 
 ## 欢迎贡献与反馈
 
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=liujuntao123/smart-mermaid&type=Date)](https://www.star-history.com/#liujuntao123/smart-mermaid&Date)
+
 如果您在使用过程中遇到任何问题，或有功能建议，欢迎通过 GitHub Issues 提出。也欢迎您 Fork本项目并提交 Pull Requests 参与贡献！
 
 如果这个项目对您有帮助，请给我们一个 ⭐️ Star！
