@@ -9,6 +9,8 @@ Smart Mermaid 是一款利用人工智能技术，将您的文本描述智能转
 **提示：** 本应用完全免费，应用已内置 API Key，您可以直接免费使用。为防止资源滥用，我们设置了每位用户每日 5 次的免费生成额度。
 如有更多需求，可联系作者免费添加（为避免骚扰，加好友时请注明目的）。
 
+<img src="https://github.com/user-attachments/assets/8d123b76-e402-435a-9d20-1231e78ce8c1" width="200px">
+
 <img src="https://github.com/user-attachments/assets/c41a6245-f169-4ede-afad-c2e9f5955343" width="200px">
 
 
