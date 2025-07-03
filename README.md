@@ -208,7 +208,7 @@ Smart Mermaid 提供三种使用模式：
 
 ```bash
 # 克隆项目
-git clone https://github.com/yourusername/smart-mermaid.git
+git clone https://github.com/liujuntao123/smart-mermaid.git
 cd smart-mermaid
 
 # 一键启动
@@ -218,7 +218,6 @@ docker-compose up -d
 # 打开浏览器访问：http://localhost:3000
 ```
 
-详细的 Docker 部署说明请参考：[Docker 部署指南](./DOCKER_DEPLOY.md)
 
 ### 📦 本地部署指南
 
