@@ -71,7 +71,9 @@ function ExcalidrawRenderer({ mermaidCode, onErrorChange }) {
     setRenderError(null);
 
     try {
-      const { elements, files } = await parseMermaidToExcalidraw(mermaidCode);
+      // 预处理 mermaidCode: 移除 <br> 标签
+      const preprocessedCode = mermaidCode.replace(/<br\s*\/?>/gi, '');
+      const { elements, files } = await parseMermaidToExcalidraw(preprocessedCode);
       const convertedElements = convertToExcalidrawElements(elements);
       
       setExcalidrawElements(convertedElements);

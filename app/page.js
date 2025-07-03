@@ -77,12 +77,7 @@ const getRemainingUsage = () => {
   return Math.max(0, usageLimit - todayUsage);
 };
 
-// Preprocessing function for mermaidCode
-const preprocessMermaidCode = (code) => {
-  if (!code) return code;
-  // Remove <br> tags
-  return code.replace(/<br\s*\/?>/gi, '');
-};
+
 
 export default function Home() {
   const [inputText, setInputText] = useState("");
@@ -287,9 +282,7 @@ export default function Home() {
         setRemainingUsage(getRemainingUsage());
       }
 
-      // 预处理生成的mermaidCode
-      const processedCode = preprocessMermaidCode(generatedCode);
-      setMermaidCode(processedCode);
+      setMermaidCode(generatedCode);
       toast.success("图表生成成功");
     } catch (error) {
       console.error("Generation error:", error);
