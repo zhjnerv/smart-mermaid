@@ -308,6 +308,9 @@ npm run start
 
 ## 欢迎贡献与反馈
 
+![image](https://github.com/user-attachments/assets/f2cdce30-d0e4-4d06-b75a-81824384dc28)
+
+
 ## Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=liujuntao123/smart-mermaid&type=Date)](https://www.star-history.com/#liujuntao123/smart-mermaid&Date)
