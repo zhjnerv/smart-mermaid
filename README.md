@@ -308,7 +308,8 @@ npm run start
 
 ## 欢迎贡献与反馈
 
-![image](https://github.com/user-attachments/assets/f2cdce30-d0e4-4d06-b75a-81824384dc28)
+![image](https://github.com/user-attachments/assets/376c0b73-3e2c-4c09-b48f-7d5a52adb8a6)
+
 
 
 ## Star History
