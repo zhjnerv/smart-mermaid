@@ -20,6 +20,8 @@ export function Header({
         <div className="flex items-center gap-2">
           <FileCode2 className="h-6 w-6" />
           <span className="text-lg font-bold">Smart Mermaid</span>
+          <span className="text-sm font-bold">简化您的图表创作</span>
+
         </div>
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
