@@ -71,25 +71,25 @@ export function FileUpload({ onTextExtracted }) {
   return (
     <div
       {...getRootProps()}
-      className={`border-2 border-dashed rounded-lg p-6 transition-colors cursor-pointer
+      className={`h-full overflow-auto border-2 border-dashed rounded-lg p-6 transition-colors cursor-pointer
         ${isDragActive ? "border-primary bg-primary/5" : "border-border"}
         ${isProcessing ? "opacity-50 cursor-not-allowed" : ""}
       `}
     >
       <input {...getInputProps()} />
-      <div className="flex flex-col items-center justify-center gap-3 text-center">
+      <div className="flex flex-col items-center justify-center gap-2 text-center">
         {isProcessing ? (
           <>
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
             <p>正在处理文件...</p>
           </>
         ) : (
           <>
-            <div className="p-3 bg-primary/10 rounded-full">
+            <div className="p-2 bg-primary/10 rounded-full">
               {isDragActive ? (
-                <FileText className="h-8 w-8 text-primary" />
+                <FileText className="h-6 w-6 text-primary" />
               ) : (
-                <Upload className="h-8 w-8 text-primary" />
+                <Upload className="h-6 w-6 text-primary" />
               )}
             </div>
             <div>
@@ -104,10 +104,6 @@ export function FileUpload({ onTextExtracted }) {
                 </>
               )}
             </div>
-            <Button type="button" variant="outline" size="sm" className="mt-2">
-              <File className="mr-2 h-4 w-4" />
-              选择文件
-            </Button>
           </>
         )}
       </div>
