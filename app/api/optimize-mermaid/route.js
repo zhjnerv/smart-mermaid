@@ -1,45 +1,31 @@
-import { cleanText } from "@/lib/utils";
-import { buildMermaidSystemPrompt } from "@/lib/prompts/mermaid";
+import { getAIConfig, getSavedPassword, getSelectedModel } from "@/lib/config-service";
 
 export async function POST(request) {
   try {
-    const { text, diagramType, aiConfig, accessPassword, selectedModel } = await request.json();
+    const { mermaidCode, instruction, aiConfig, accessPassword, selectedModel } = await request.json();
 
-    if (!text) {
-      return Response.json({ error: "请提供文本内容" }, { status: 400 });
+    if (!mermaidCode || typeof mermaidCode !== 'string') {
+      return Response.json({ error: "请提供需要优化的Mermaid代码" }, { status: 400 });
     }
 
-    const cleanedText = cleanText(text);
-    
     let finalConfig;
-    
-    // 步骤1: 检查是否有完整的aiConfig
+
+    // 与其他路由一致的配置分支
     const hasCompleteAiConfig = aiConfig?.apiUrl && aiConfig?.apiKey && aiConfig?.modelName;
-    
     if (hasCompleteAiConfig) {
-      // 如果有完整的aiConfig，直接使用
       finalConfig = {
         apiUrl: aiConfig.apiUrl,
         apiKey: aiConfig.apiKey,
         modelName: aiConfig.modelName
       };
     } else {
-      // 步骤2: 如果没有完整的aiConfig，则检验accessPassword
       if (accessPassword) {
-        // 步骤3: 如果传入了accessPassword，验证是否有效
         const correctPassword = process.env.ACCESS_PASSWORD;
         const isPasswordValid = correctPassword && accessPassword === correctPassword;
-        
         if (!isPasswordValid) {
-          // 如果密码无效，直接报错
-          return Response.json({ 
-            error: "访问密码无效" 
-          }, { status: 401 });
+          return Response.json({ error: "访问密码无效" }, { status: 401 });
         }
       }
-      
-      // 如果没有传入accessPassword或者accessPassword有效，使用环境变量配置
-      // 如果有选择的模型，使用选择的模型，否则使用默认模型
       finalConfig = {
         apiUrl: process.env.AI_API_URL,
         apiKey: process.env.AI_API_KEY,
@@ -47,39 +33,39 @@ export async function POST(request) {
       };
     }
 
-    // 检查最终配置是否完整
     if (!finalConfig.apiUrl || !finalConfig.apiKey || !finalConfig.modelName) {
-      return Response.json({ 
-        error: "AI配置不完整，请在设置中配置API URL、API Key和模型名称" 
-      }, { status: 400 });
+      return Response.json({ error: "AI配置不完整，请在设置中配置API URL、API Key和模型名称" }, { status: 400 });
     }
 
-    // 构建规范化的 system prompt（中文，按图类型约束）
-    const systemPrompt = buildMermaidSystemPrompt({ diagramType: diagramType || "auto", language: "zh" });
+    // 系统提示词：仅输出一个 mermaid fenced code，禁止添加解释
+    const systemPrompt = [
+      "你是资深的 Mermaid 代码优化专家。",
+      "目标：在不改变语义的前提下，提升可读性、布局稳定性与一致性。",
+      "允许：合理的方向(flowchart TD/LR 切换)、节点命名规范化(显示文本不变)、subgraph 分组、classDef 样式、边标签规整。",
+      "禁止：凭空增加/删除实体或关系；输出额外解释；输出多于一个代码块。",
+      "输出契约：仅输出一个以 mermaid 标注的 fenced code block。"
+    ].join('\n');
+
+    const userParts = [
+      "请优化以下 Mermaid 代码：",
+      "```mermaid",
+      mermaidCode,
+      "```"
+    ];
+    if (instruction && String(instruction).trim()) {
+      userParts.push("附加优化需求：\n" + String(instruction).trim());
+    }
+    userParts.push("仅输出优化后的一个 mermaid fenced code。");
 
     const messages = [
-      {
-        role: "system",
-        content: systemPrompt,
-      },
-      {
-        role: "user",
-        content: cleanedText,
-      },
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userParts.join('\n') }
     ];
 
-    // 构建API URL
-    const url = finalConfig.apiUrl.includes("v1") || finalConfig.apiUrl.includes("v3") 
-      ? `${finalConfig.apiUrl}/chat/completions` 
+    const url = finalConfig.apiUrl.includes("v1") || finalConfig.apiUrl.includes("v3")
+      ? `${finalConfig.apiUrl}/chat/completions`
       : `${finalConfig.apiUrl}/v1/chat/completions`;
-    
-    console.log('Using AI config:', { 
-      url, 
-      modelName: finalConfig.modelName,
-      hasApiKey: !!finalConfig.apiKey,
-    });
 
-    // 创建一个 SSE 流式响应
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
       async start(controller) {
@@ -87,7 +73,6 @@ export async function POST(request) {
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(obj)}\n\n`));
         };
         try {
-          // 发送请求到 AI API (开启流式模式)
           const response = await fetch(url, {
             method: "POST",
             headers: {
@@ -103,19 +88,17 @@ export async function POST(request) {
 
           if (!response.ok) {
             const errorText = await response.text();
-            console.error("AI API Error:", response.status, errorText);
             sendEvent({ type: "error", message: `AI服务返回错误 (${response.status})`, ok: false });
             controller.close();
             return;
           }
 
-          // 读取上游流式响应并增量提取 mermaid fenced code
           const reader = response.body.getReader();
           const decoder = new TextDecoder();
-          let pending = ""; // 待处理缓冲
+          let pending = "";
           let mode = "search"; // search | collect | done
-          let finalCollected = ""; // 最终代码
-          let rawAll = ""; // 兜底：若未找到 fenced，则返回原始文本
+          let finalCollected = "";
+          let rawAll = "";
 
           const processIncoming = (text) => {
             const out = [];
@@ -130,14 +113,9 @@ export async function POST(request) {
                 } else if (idxFence !== -1) {
                   idx = idxFence;
                 }
-                if (idx === -1) {
-                  break; // 等待更多数据
-                }
+                if (idx === -1) break;
                 const nlIdx = pending.indexOf("\n", idx);
-                if (nlIdx === -1) {
-                  break; // fence 行未完整
-                }
-                // 丢弃 fence 行及之前内容
+                if (nlIdx === -1) break;
                 pending = pending.substring(nlIdx + 1);
                 mode = "collect";
               } else if (mode === "collect") {
@@ -164,7 +142,6 @@ export async function POST(request) {
             if (done) break;
             const chunk = decoder.decode(value, { stream: true });
 
-            // OpenAI 风格 SSE：逐行解析 data: 行
             const lines = chunk.split('\n').filter(line => line.trim() !== '');
             for (const line of lines) {
               if (line.startsWith('data: ')) {
@@ -183,17 +160,16 @@ export async function POST(request) {
                       }
                     }
                   }
-                } catch (e) {
-                  console.error('Error parsing upstream chunk:', e);
+                } catch (_) {
+                  // 忽略解析失败
                 }
               }
             }
           }
 
-          const finalCode = finalCollected.trim() || rawAll.trim();
+          const finalCode = (finalCollected.trim() || rawAll.trim());
           sendEvent({ type: 'final', data: finalCode, ok: true });
         } catch (error) {
-          console.error("Streaming Error:", error);
           const safeMsg = error?.message || '未知错误';
           controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: 'error', message: `处理请求时发生错误: ${safeMsg}`, ok: false })}\n\n`));
         } finally {
@@ -202,7 +178,6 @@ export async function POST(request) {
       }
     });
 
-    // 返回 SSE 流式响应
     return new Response(stream, {
       headers: {
         'Content-Type': 'text/event-stream',
@@ -212,10 +187,12 @@ export async function POST(request) {
       },
     });
   } catch (error) {
-    console.error("API Route Error:", error);
     return Response.json(
-      { error: `处理请求时发生错误: ${error.message}` }, 
+      { error: `处理请求时发生错误: ${error.message}` },
       { status: 500 }
     );
   }
-} 
+}
+
+
+

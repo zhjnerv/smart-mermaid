@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Wand2, PanelLeftClose, PanelLeftOpen, Monitor, FileImage, RotateCcw, Maximize, RotateCw } from "lucide-react";
+import { Wand2, PanelLeftClose, PanelLeftOpen, RotateCcw, Maximize, ArrowLeftRight } from "lucide-react";
 import { Header } from "@/components/header";
 import { SettingsDialog } from "@/components/settings-dialog";
 import { TextInput } from "@/components/text-input";
@@ -19,6 +19,16 @@ import { generateMermaidFromText } from "@/lib/ai-service";
 import { isWithinCharLimit } from "@/lib/utils";
 import { isPasswordVerified, hasCustomAIConfig, hasUnlimitedAccess } from "@/lib/config-service";
 import { autoFixMermaidCode, toggleMermaidDirection } from "@/lib/mermaid-fixer";
+import { Switch } from "@/components/ui/switch";
+import { HistoryList } from "@/components/history-list";
+import { getHistory, addHistoryEntry, deleteHistoryEntry, clearHistory } from "@/lib/history-service";
+import { 
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from "@/components/ui/select";
 import { 
   Dialog,
   DialogContent,
@@ -97,6 +107,9 @@ export default function Home() {
   const [isLeftPanelCollapsed, setIsLeftPanelCollapsed] = useState(false);
   const [renderMode, setRenderMode] = useState("excalidraw"); // "excalidraw" | "mermaid"
   const [isFixing, setIsFixing] = useState(false);
+  const [showRealtime, setShowRealtime] = useState(false);
+  const [leftTab, setLeftTab] = useState("manual");
+  const [historyEntries, setHistoryEntries] = useState([]);
 
   // 错误状态管理
   const [errorMessage, setErrorMessage] = useState(null);
@@ -111,6 +124,8 @@ export default function Home() {
     setPasswordVerified(isPasswordVerified());
     // Check custom AI config status
     setHasCustomConfig(hasCustomAIConfig());
+    // Load history list
+    setHistoryEntries(getHistory());
   }, []);
 
   const handleTextChange = (text) => {
@@ -161,10 +176,7 @@ export default function Home() {
     setIsLeftPanelCollapsed(!isLeftPanelCollapsed);
   };
 
-  // 切换渲染模式
-  const toggleRenderMode = () => {
-    setRenderMode(prev => prev === "excalidraw" ? "mermaid" : "excalidraw");
-  };
+  // 渲染模式通过下拉选择器切换
 
   // 使用useCallback优化ModelSelector的回调
   const handleModelChange = useCallback((modelId) => {
@@ -256,14 +268,14 @@ export default function Home() {
     }
 
     setIsGenerating(true);
-    setIsStreaming(true);
+    setIsStreaming(showRealtime);
     setStreamingContent("");
 
     try {
       const { mermaidCode: generatedCode, error } = await generateMermaidFromText(
         inputText,
         diagramType,
-        handleStreamChunk
+        showRealtime ? handleStreamChunk : null
       );
 
       if (error) {
@@ -283,6 +295,11 @@ export default function Home() {
       }
 
       setMermaidCode(generatedCode);
+      // 保存到历史记录
+      try {
+        addHistoryEntry({ inputText, mermaidCode: generatedCode, diagramType });
+        setHistoryEntries(getHistory());
+      } catch {}
       toast.success("图表生成成功");
     } catch (error) {
       console.error("Generation error:", error);
@@ -316,12 +333,13 @@ export default function Home() {
               isLeftPanelCollapsed ? 'hidden md:hidden' : 'col-span-1'
             } flex flex-col h-full overflow-hidden`}>
               
-              <Tabs defaultValue="manual" className="flex flex-col h-full">
+              <Tabs value={leftTab} onValueChange={setLeftTab} className="flex flex-col h-full">
                 {/* 固定高度的顶部控制栏 */}
                 <div className="h-auto md:h-12 flex flex-col md:flex-row justify-between items-start md:items-center gap-2 flex-shrink-0 pb-2 md:pb-0">
                   <TabsList className="h-9 w-full md:w-auto">
                     <TabsTrigger value="manual" className="flex-1 md:flex-none">手动输入</TabsTrigger>
                     <TabsTrigger value="file" className="flex-1 md:flex-none">文件上传</TabsTrigger>
+                    <TabsTrigger value="history" className="flex-1 md:flex-none">历史记录</TabsTrigger>
                   </TabsList>
                   <div className="flex items-center gap-2 w-full md:w-auto flex-wrap">
                     <ModelSelector onModelChange={handleModelChange} />
@@ -336,8 +354,8 @@ export default function Home() {
                 
                 {/* 主内容区域 */}
                 <div className="flex-1 flex flex-col overflow-hidden mt-2 md:mt-4">
-                  {/* 输入区域 - 固定高度 */}
-                  <div className="h-40 md:h-56 flex-shrink-0">
+                  {/* 输入区域 - 固定高度（压缩以为“继续优化”留空间） */}
+                  <div className="h-28 md:h-40 flex-shrink-0">
                     <TabsContent value="manual" className="h-full mt-0">
                       <TextInput 
                         value={inputText} 
@@ -348,14 +366,24 @@ export default function Home() {
                     <TabsContent value="file" className="h-full mt-0">
                       <FileUpload onTextExtracted={handleFileTextExtracted} />
                     </TabsContent>
+                    <TabsContent value="history" className="h-full mt-0">
+                      <HistoryList
+                        items={historyEntries}
+                        onSelect={(item) => {
+                          setInputText(item.inputText);
+                          setMermaidCode(item.mermaidCode);
+                          setLeftTab("manual");
+                        }}
+                      />
+                    </TabsContent>
                   </div>
 
                   {/* 生成按钮 - 固定高度 */}
-                  <div className="h-16 flex items-center flex-shrink-0">
+                  <div className="h-16 flex items-center gap-2 flex-shrink-0">
                     <Button 
                       onClick={handleGenerateClick} 
                       disabled={isGenerating || !inputText.trim() || !isWithinCharLimit(inputText, maxChars)}
-                      className="w-full h-10"
+                      className="h-10 flex-1"
                     >
                       {isGenerating ? (
                         <>
@@ -369,6 +397,13 @@ export default function Home() {
                         </>
                       )}
                     </Button>
+                    <div className="flex items-center">
+                      <Switch 
+                        checked={showRealtime} 
+                        onCheckedChange={setShowRealtime}
+                        title="实时生成"
+                      />
+                    </div>
                   </div>
                   
                   {/* 编辑器区域 - 占用剩余空间 */}
@@ -381,6 +416,7 @@ export default function Home() {
                       errorMessage={errorMessage}
                       hasError={hasError}
                       onStreamChunk={handleStreamChunk}
+                      showRealtime={showRealtime}
                     />
                   </div>
                 </div>
@@ -402,12 +438,12 @@ export default function Home() {
                   {isLeftPanelCollapsed ? (
                     <>
                       <PanelLeftOpen className="h-4 w-4" />
-                      <span className="hidden sm:inline ml-2">显示编辑面板</span>
+                      <span className="hidden sm:inline ml-2">显示</span>
                     </>
                   ) : (
                     <>
                       <PanelLeftClose className="h-4 w-4" />
-                      <span className="hidden sm:inline ml-2">隐藏编辑面板</span>
+                      <span className="hidden sm:inline ml-2">隐藏</span>
                     </>
                   )}
                 </Button>
@@ -422,15 +458,9 @@ export default function Home() {
                     title={hasError ? "使用AI智能修复代码问题" : "当前代码没有错误，无需修复"}
                   >
                     {isFixing ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current"></div>
-                        <span className="hidden lg:inline ml-2">修复中...</span>
-                      </>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current"></div>
                     ) : (
-                      <>
-                        <Wand2 className="h-4 w-4" />
-                        <span className="hidden lg:inline ml-2">AI修复</span>
-                      </>
+                      <Wand2 className="h-4 w-4" />
                     )}
                   </Button>
 
@@ -442,28 +472,18 @@ export default function Home() {
                     className="h-9"
                     title="切换图表方向 (横向/纵向)"
                   >
-                    <RotateCw className="h-4 w-4" />
-                    <span className="hidden lg:inline ml-2">切换方向</span>
+                    <ArrowLeftRight className="h-4 w-4" />
                   </Button>
 
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={toggleRenderMode}
-                    className="h-9"
-                  >
-                    {renderMode === "excalidraw" ? (
-                      <>
-                        <FileImage className="h-4 w-4" />
-                        <span className="hidden sm:inline ml-2">Mermaid</span>
-                      </>
-                    ) : (
-                      <>
-                        <Monitor className="h-4 w-4" />
-                        <span className="hidden sm:inline ml-2">Excalidraw</span>
-                      </>
-                    )}
-                  </Button>
+                  <Select value={renderMode} onValueChange={setRenderMode}>
+                    <SelectTrigger className="h-9 w-[120px]">
+                      <SelectValue placeholder="选择渲染器" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="excalidraw">Excalidraw</SelectItem>
+                      <SelectItem value="mermaid">Mermaid</SelectItem>
+                    </SelectContent>
+                  </Select>
 
                   <Button
                     variant="outline"

@@ -116,9 +116,8 @@ export function ModelSelector({ onModelChange }) {
         <SelectContent>
           {availableModels.map((model) => (
             <SelectItem key={model.id} value={model.id}>
-              <div className="flex flex-col">
+              <div className="flex items-center">
                 <span className="font-medium text-xs">{model.name}</span>
-                <span className="text-xs text-muted-foreground hidden md:block">{model.description}</span>
               </div>
             </SelectItem>
           ))}
