@@ -1,8 +1,5 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // 添加 assetPrefix
-  assetPrefix: process.env.NODE_ENV === 'production' ? 'https://lct.zhjwork.online' : '',
-
   // 启用 standalone 输出模式以支持 Docker
   output: 'standalone',
 
